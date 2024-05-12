@@ -9,18 +9,11 @@ const app = express();
 
 app.use(express.json());
 
-// const connection = mysql.createConnection({
-//   host: 'a1dia751.mysql.tools',
-//   user: 'a1dia751_parserdatabase',
-//   password: '587dDf+fP*',
-//   database: 'a1dia751_parserdatabase',
-// });
-
 const connection = mysql.createConnection({
-  host: 'localhost',
-  user: 'root',
-  password: '',
-  database: 'diakom_tm',
+  host: 'a1dia751.mysql.tools',
+  user: 'a1dia751_diakommarks',
+  password: 'FryBf)4*28',
+  database: 'a1dia751_diakommarks',
 });
 
 connection.connect((err) => {
@@ -171,85 +164,104 @@ function fetchData(url) {
 }
 
 const startAllRecord = initialUrl + `page=${num}`;
-// if (!fs.existsSync(path)) {
-//   fetchData(startAllRecord);
-// }
-fetchData(startAllRecord);
+if (!fs.existsSync(path)) {
+  fetchData(startAllRecord);
+} else {
+  console.log('пошла вторая запись');
+  // fetchData(startAllRecord);
 
-// ежедневная проверка и загрузка новых обновлений по торговым маркам
-const lastUpdateMark = () => {
-  const sqllastDate = `SELECT * FROM marks_info`;
+  // ежедневная проверка и загрузка новых обновлений по торговым маркам
+  const lastUpdateMark = () => {
+    const sqllastDate = `SELECT * FROM marks_info`;
 
-  connection.query(sqllastDate, function (err, results) {
-    if (err) console.log(err);
-    // берем данные из last_update (последней записи в бд) и превращаем в нужную нам дату
-    let date = new Date(results[results.length - 1].last_update);
-    let day = date.getDate().toString().padStart(2, '0');
-    let month = (date.getMonth() + 1).toString().padStart(2, '0');
-    let year = date.getFullYear();
-    lastUpdate = `${day}.${month}.${year}`;
-    console.log(lastUpdate, results[results.length - 1].number);
+    connection.query(sqllastDate, function (err, results) {
+      if (err) console.log(err);
+      // берем данные из last_update (последней записи в бд) и превращаем в нужную нам дату
+      let date = new Date(results[results.length - 1].last_update);
+      let day = date.getDate().toString().padStart(2, '0');
+      let month = (date.getMonth() + 1).toString().padStart(2, '0');
+      let year = date.getFullYear();
+      lastUpdate = `${day}.${month}.${year}`;
+      console.log('>>>>>>>>lastdate', lastUpdate, results[results.length - 1].number);
 
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        fetch(
-          `http://sis.nipo.gov.ua/api/v1/open-data/?last_update_from=${lastUpdate}&obj_type=4&page=${num}`
-        )
-          .then((res) => res.json())
-          .then((data) => {
-            for (const result of data.results) {
-              const createTableMarks_info = `
+      return new Promise((resolve, reject) => {
+        setTimeout(() => {
+          fetch(
+            `http://sis.nipo.gov.ua/api/v1/open-data/?last_update_from=${lastUpdate}&obj_type=4&page=${num}`
+          )
+            .then((res) => res.json())
+            .then((data) => {
+              for (const result of data.results) {
+                const createTableMarks_info = `
                     INSERT INTO marks_info (name_marks, name_applicant, address_applicant, name_owner, address_owner, number, registration_number,  status,   adress_img, last_update) VALUES ('${result.data.WordMarkSpecification.MarkSignificantVerbalElement[0]['#text']}', '${result.data.HolderDetails.Holder[0].HolderAddressBook.FormattedNameAddress.Name.FreeFormatName.FreeFormatNameDetails.FreeFormatNameLine}', '${result.data.HolderDetails.Holder[0].HolderAddressBook.FormattedNameAddress.Address.FreeFormatAddress.FreeFormatAddressLine}', '${result.data.ApplicantDetails.Applicant[0].ApplicantAddressBook.FormattedNameAddress.Name.FreeFormatName.FreeFormatNameDetails.FreeFormatNameLine}', '${result.data.ApplicantDetails.Applicant[0].ApplicantAddressBook.FormattedNameAddress.Address.FreeFormatAddress.FreeFormatAddressLine}', '${result.data.ApplicationNumber}', '${result.data.RegistrationNumber}', '${result.obj_state}', '${result.data.MarkImageDetails.MarkImage.MarkImageFilename}', '${result.last_update}')
                   `;
-              connection.query(createTableMarks_info, (err, results) => {
-                if (err) {
-                  console.error('Ошибка при добавлении данных:', err);
-                } else {
-                  console.log('Данные успешно добавлены');
+                connection.query(createTableMarks_info, (err, results) => {
+                  if (err) {
+                    console.error('Ошибка при добавлении данных:', err);
+                  } else {
+                    console.log('Данные успешно добавлены');
 
-                  const classDescription =
-                    result.data.GoodsServicesDetails.GoodsServices.ClassDescriptionDetails
-                      .ClassDescription[0];
-                  const classNumber = classDescription.ClassNumber;
+                    const classDescription =
+                      result.data.GoodsServicesDetails.GoodsServices.ClassDescriptionDetails
+                        .ClassDescription[0];
+                    const classNumber = classDescription.ClassNumber;
 
-                  classDescription.ClassificationTermDetails.ClassificationTerm.forEach((term) => {
-                    const termText = term.ClassificationTermText;
+                    classDescription.ClassificationTermDetails.ClassificationTerm.forEach(
+                      (term) => {
+                        const termText = term.ClassificationTermText;
 
-                    const createTableNumberKeys = `INSERT INTO number_class (number_class, class_info, mark_id) VALUES (?, ?, ?)`;
-                    const values = [classNumber, termText, results.insertId];
+                        const createTableNumberKeys = `INSERT INTO number_class (number_class, class_info, mark_id) VALUES (?, ?, ?)`;
+                        const values = [classNumber, termText, results.insertId];
 
-                    connection.query(createTableNumberKeys, values, (err) => {
-                      if (err) {
-                        console.error('Ошибка при добавлении данных в таблицу номеров ключей', err);
-                      } else {
-                        console.log('Данные в таблицу ключей добавлены');
+                        connection.query(createTableNumberKeys, values, (err) => {
+                          if (err) {
+                            console.error(
+                              'Ошибка при добавлении данных в таблицу номеров ключей',
+                              err
+                            );
+                          } else {
+                            console.log('Данные в таблицу ключей добавлены');
+                          }
+                        });
                       }
-                    });
-                  });
-                }
-              });
-            }
+                    );
+                  }
+                });
+              }
 
-            if (num < allPages) {
-              num++;
-              const nextUrl = `http://sis.nipo.gov.ua/api/v1/open-data/?last_update_from=${lastUpdate}&obj_type=4&page=${num}`;
-              fetchData(nextUrl).then(resolve).catch(reject);
-            } else {
-              console.log('Такого в базе данных нет');
-              resolve();
-            }
-          })
-          .catch((error) => {
-            console.error('Ошибка при загрузке данных:', error);
-            reject(error);
-          });
-      }, 2000);
+              if (num < allPages) {
+                num++;
+                const nextUrl = `http://sis.nipo.gov.ua/api/v1/open-data/?last_update_from=${lastUpdate}&obj_type=4&page=${num}`;
+                fetchData(nextUrl).then(resolve).catch(reject);
+              } else {
+                console.log('Такого в базе данных нет');
+                resolve();
+              }
+            })
+            .catch((error) => {
+              console.error('Ошибка при загрузке данных:', error);
+              reject(error);
+            });
+        }, 2000);
+      });
     });
-  });
-};
-// lastUpdateMark();
-// запуск функции в определнное время
-// cron.schedule('0 23 * * *', lastUpdateMark);
+  };
+  // lastUpdateMark();
+  // запуск функции в определнное время
+  cron.schedule('0 23 * * *', lastUpdateMark);
+  // function showTimer() {
+  //   const now = new Date();
+  //   const targetTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 0, 0);
+  //   const diff = targetTime - now;
+  //   const hours = Math.floor(diff / (1000 * 60 * 60));
+  //   const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+  //   const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+  //   console.log(`До запуска функции осталось: ${hours} ч. ${minutes} мин. ${seconds} сек.`);
+  // }
+  // setInterval(showTimer, 1000);
+}
+
 //
 app.listen(PORT, () => {
   console.log('START', PORT);
