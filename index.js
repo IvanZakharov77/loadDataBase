@@ -2,7 +2,6 @@ import express from 'express';
 import fetch from 'node-fetch';
 import mysql from 'mysql';
 import fs from 'fs';
-import cron from 'node-cron';
 
 const PORT = 5000;
 const app = express();
@@ -15,254 +14,326 @@ const connection = mysql.createConnection({
   password: 'FryBf)4*28',
   database: 'a1dia751_diakommarks',
 });
+const handleDisconnect = () => {
+  connection.connect((err) => {
+    if (err) {
+      console.error('Ошибка при подключении к базе данных:', err);
+      setTimeout(handleDisconnect, 2000); // Повторное подключение через 2 секунды
+    } else {
+      console.log('Подключено к базе данных');
+      // Проверка и создание таблиц
+      checkAndCreateTables();
+    }
+  });
 
-connection.connect((err) => {
+  connection.on('error', (err) => {
+    console.error('Ошибка соединения с базой данных:', err);
+    if (err.code === 'PROTOCOL_CONNECTION_LOST') {
+      handleDisconnect(); // Повторное подключение при потере соединения
+    } else {
+      throw err;
+    }
+  });
+};
+
+function checkAndCreateTables() {
+  const firstTableName = 'marks_info';
+  const secondTableName = 'number_class';
+
+  connection.query(`SHOW TABLES LIKE '${firstTableName}'`, (err, results) => {
+    if (err) {
+      console.error('Ошибка при проверке наличия таблицы', err);
+    } else if (results.length === 0) {
+      connection.query(
+        `CREATE TABLE ${firstTableName} (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          name_marks VARCHAR(255),
+          name_applicant VARCHAR(255),
+          address_applicant VARCHAR(255),
+          name_owner VARCHAR(255),
+          address_owner VARCHAR(255),
+          number VARCHAR(255) UNIQUE,
+          registration_number VARCHAR(255),
+          status VARCHAR(255),
+          adress_img VARCHAR(255),
+          last_update VARCHAR(255)
+        )`,
+        (err) => {
+          if (err) {
+            console.error('Ошибка при создании таблицы', err);
+          } else {
+            console.log(`Таблица ${firstTableName} успешно создана`);
+          }
+        }
+      );
+    }
+  });
+
+  connection.query(`SHOW TABLES LIKE '${secondTableName}'`, (err, results) => {
+    if (err) {
+      console.error('Ошибка при проверке наличия таблицы', err);
+    } else if (results.length === 0) {
+      connection.query(
+        `CREATE TABLE ${secondTableName} (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          number_class INT,
+          class_info VARCHAR(255),
+          mark_id INT,
+          FOREIGN KEY (mark_id) REFERENCES marks_info(id)
+        )`,
+        (err) => {
+          if (err) {
+            console.error('Ошибка при создании таблицы', err);
+          } else {
+            console.log(`Таблица ${secondTableName} успешно создана`);
+          }
+        }
+      );
+    }
+  });
+}
+
+handleDisconnect();
+
+// async function fetchWithRetry(url, options = {}, retries = 3, backoff = 3000) {
+//   for (let i = 0; i < retries; i++) {
+//     try {
+//       const res = await fetch(url, options);
+//       if (!res.ok) {
+//         throw new Error(`Ошибка сети: ${res.status}`);
+//       }
+//       return res.json();
+//     } catch (err) {
+//       if (i === retries - 1) {
+//         throw err;
+//       }
+//       console.error(`Попытка ${i + 1} не удалась, повтор через ${backoff} мс`, err);
+//       await new Promise((resolve) => setTimeout(resolve, backoff));
+//     }
+//   }
+// }
+
+let num = 28269;
+let allPages = 561454;
+const initialUrl = `https://sis.nipo.gov.ua/api/v1/open-data/?obj_type=4&`;
+
+//
+fs.readFile('number.txt', 'utf8', (err, data) => {
   if (err) {
-    console.error('эррор при подключении к базе вп', err);
+    console.error('Ошибка при чтении файла:', err);
+    return;
+  }
+
+  num = parseInt(data, 10);
+
+  // Проверяем, успешно ли преобразовано значение в число
+  if (isNaN(num)) {
+    console.error('Содержимое файла не является числом');
   } else {
-    console.log('конектед к бд');
-    // переменные с именами таблиц
-    const firstTableName = 'marks_info';
-    const secondTableName = 'number_class';
-
-    // проверяем есть ли таблица с марками именами
-    connection.query(`SHOW TABLES LIKE '${firstTableName}'`, (err, results) => {
-      if (err) {
-        console.error('Ошибка при проверке наличия таблицы', err);
-      } else {
-        // создаем таблицу с именами марок тм
-        if (results.length === 0) {
-          connection.query(
-            `CREATE TABLE  ${firstTableName} (
-                              id INT AUTO_INCREMENT PRIMARY KEY,
-                              name_marks VARCHAR(255) UNIQUE,
-                              name_applicant VARCHAR(255),
-                              address_applicant VARCHAR(255),
-                              name_owner VARCHAR(255),
-                              address_owner VARCHAR(255),
-                              number VARCHAR(255),
-                              registration_number VARCHAR(255),
-                              status INT,
-                              adress_img VARCHAR(255),
-                              last_update VARCHAR(255)
-                            )`,
-            (err) => {
-              if (err) {
-                console.error('Ошибка при создании таблицы', err);
-              } else {
-                console.log(`Таблица ${firstTableName} успешно создана`);
-              }
-            }
-          );
-        }
-      }
-    });
-
-    // проверяем есть ли таблица с инфой по классам
-    connection.query(`SHOW TABLES LIKE '${secondTableName}'`, (err, results) => {
-      if (err) {
-        console.error('Ошибка при проверке наличия таблицы', err);
-      } else {
-        // создание таблицы с инфо по классам
-        if (results.length === 0) {
-          connection.query(
-            `CREATE TABLE ${secondTableName} (
-                              id INT AUTO_INCREMENT PRIMARY KEY,
-                              number_class INT,
-                              class_info VARCHAR(255),
-                              mark_id INT,
-                              FOREIGN KEY (mark_id) REFERENCES marks_info(id)
-                            )`,
-            (err) => {
-              if (err) {
-                console.error('Ошибка при создании таблицы', err);
-              } else {
-                console.log(`Таблица ${secondTableName} успешно создана`);
-              }
-            }
-          );
-        }
-      }
-    });
+    console.log('Число из файла:', num);
+    // Здесь вы можете использовать переменную `number` как вам нужно
   }
 });
 //
 
-// нужные перменные
-let lastUpdate;
-const path = './dont.txt';
-let allPages;
+// const gettingСount = async (url) => {
+//   await fetch(url)
+//     .then((res) =>  res.json())
+//     .then((data) => {
+//       console.log('!!', data.count);
+//       allPages =  Math.ceil(data.count / 10);
+//     });
+// };
+// gettingСount(initialUrl);
 
-const initialUrl = `https://sis.nipo.gov.ua/api/v1/open-data/?obj_type=4&`;
-
-const gettingСount = (url) => {
-  fetch(url)
-    .then((res) => res.json())
-    .then((data) => {
-      allPages = Math.ceil(data.count / 10);
-    });
-};
-gettingСount(initialUrl);
-
-// ------- первоначальная загрузка основной базы данных
-let num = 1;
-
-function fetchData(url) {
-  return new Promise((resolve, reject) => {
-    setTimeout(() => {
-      fetch(url)
-        .then((res) => res.json())
-        .then((data) => {
-          for (const result of data.results) {
-            const createTableMarks_info = `
-                  INSERT INTO marks_info (name_marks, name_applicant, address_applicant, name_owner, address_owner, number, registration_number,  status,   adress_img, last_update) VALUES ('${result.data.WordMarkSpecification.MarkSignificantVerbalElement[0]['#text']}', '${result.data.HolderDetails.Holder[0].HolderAddressBook.FormattedNameAddress.Name.FreeFormatName.FreeFormatNameDetails.FreeFormatNameLine}', '${result.data.HolderDetails.Holder[0].HolderAddressBook.FormattedNameAddress.Address.FreeFormatAddress.FreeFormatAddressLine}', '${result.data.ApplicantDetails.Applicant[0].ApplicantAddressBook.FormattedNameAddress.Name.FreeFormatName.FreeFormatNameDetails.FreeFormatNameLine}', '${result.data.ApplicantDetails.Applicant[0].ApplicantAddressBook.FormattedNameAddress.Address.FreeFormatAddress.FreeFormatAddressLine}', '${result.data.ApplicationNumber}', '${result.data.RegistrationNumber}', '${result.obj_state}', '${result.data.MarkImageDetails.MarkImage.MarkImageFilename}', '${result.last_update}')
-                `;
-            connection.query(createTableMarks_info, (err, results) => {
+const fetchData = async (url) => {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      console.error(`Ошибка сети: ${response.status}`);
+    }
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      throw new Error('Ожидался JSON, но получен HTML');
+    }
+    const data = await response.json();
+    for (const result of data.results) {
+      const createTableMarks_info = `
+        INSERT INTO marks_info (name_marks, name_applicant, address_applicant, name_owner, address_owner, number, registration_number, status, adress_img, last_update) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `;
+      const values = [
+        result.data.WordMarkSpecification.MarkSignificantVerbalElement !== undefined
+          ? result.data.WordMarkSpecification.MarkSignificantVerbalElement[0]['#text']
+          : '* - інформація тимчасово обмежена',
+        result.data.HolderDetails !== undefined
+          ? result.data.HolderDetails.Holder[0].HolderAddressBook.FormattedNameAddress.Name
+              .FreeFormatName.FreeFormatNameDetails.FreeFormatNameLine
+          : '* - інформація тимчасово обмежена',
+        result.data.HolderDetails !== undefined
+          ? result.data.HolderDetails.Holder[0].HolderAddressBook.FormattedNameAddress.Address
+              .FreeFormatAddress.FreeFormatAddressLine
+          : '* - інформація тимчасово обмежена',
+        result.data.ApplicantDetails !== undefined
+          ? result.data.ApplicantDetails.Applicant[0].ApplicantAddressBook.FormattedNameAddress.Name
+              .FreeFormatName.FreeFormatNameDetails.FreeFormatNameLine
+          : '* - інформація тимчасово обмежена',
+        result.data.ApplicantDetails !== undefined
+          ? result.data.ApplicantDetails.Applicant[0].ApplicantAddressBook.FormattedNameAddress
+              .Address.FreeFormatAddress.FreeFormatAddressLine
+          : '* - інформація тимчасово обмежена',
+        result.data.ApplicationNumber,
+        result.data.RegistrationNumber,
+        result.data.registration_status_color,
+        result.data.MarkImageDetails.MarkImage.MarkImageFilename,
+        result.last_update,
+      ];
+      console.log(values);
+      connection.query(createTableMarks_info, values, (err, results) => {
+        if (err) {
+          console.error('Ошибка при добавлении данных:', err);
+        } else {
+          console.log('Данные успешно добавлены');
+          const classDescription =
+            result.data.GoodsServicesDetails !== null
+              ? result.data.GoodsServicesDetails.GoodsServices !==
+                result.data.GoodsServicesDetails.GoodsServices.ClassDescriptionDetails
+                  .ClassDescription[0]
+                ? result.data.GoodsServicesDetails.GoodsServices.ClassDescriptionDetails
+                    .ClassDescription[0]
+                : { termText: '* - інформація тимчасово обмежена' }
+              : { termText: '* - інформація тимчасово обмежена' };
+          const classNumber = classDescription.ClassNumber;
+          classDescription.ClassificationTermDetails.ClassificationTerm.forEach((term) => {
+            const termText = term.ClassificationTermText;
+            const createTableNumberKeys = `INSERT INTO number_class (number_class, class_info, mark_id) VALUES (?, ?, ?)`;
+            const values = [classNumber, termText, results.insertId];
+            connection.query(createTableNumberKeys, values, (err) => {
               if (err) {
-                console.error('Ошибка при добавлении данных:', err);
+                console.error('Ошибка при добавлении данных в таблицу номеров ключей', err);
               } else {
-                console.log('Данные успешно добавлены');
-
-                const classDescription =
-                  result.data.GoodsServicesDetails.GoodsServices.ClassDescriptionDetails
-                    .ClassDescription[0];
-                const classNumber = classDescription.ClassNumber;
-
-                classDescription.ClassificationTermDetails.ClassificationTerm.forEach((term) => {
-                  const termText = term.ClassificationTermText;
-
-                  const createTableNumberKeys = `INSERT INTO number_class (number_class, class_info, mark_id) VALUES (?, ?, ?)`;
-                  const values = [classNumber, termText, results.insertId];
-
-                  connection.query(createTableNumberKeys, values, (err) => {
-                    if (err) {
-                      console.error('Ошибка при добавлении данных в таблицу номеров ключей', err);
-                    } else {
-                      console.log('Данные в таблицу ключей добавлены');
-                    }
-                  });
-                });
+                console.log('Данные в таблицу ключей добавлены');
               }
             });
-          }
-          fs.writeFileSync(path, 'dont');
-          if (num < allPages) {
-            num++;
-            const nextUrl = `https://sis.nipo.gov.ua/api/v1/open-data/?obj_type=4&page=${num}`;
-            fetchData(nextUrl).then(resolve).catch(reject);
+          });
+        }
+      });
+    }
+    console.log('mmmm', allPages);
+    if (num < allPages) {
+      console.log('>>>>>', num);
+      num += 1;
+      const nextUrl = `https://sis.nipo.gov.ua/api/v1/open-data/?obj_type=4&page=${num}`;
+      setTimeout(() => {
+        fetchData(nextUrl);
+        fs.writeFile('number.txt', num.toString(), (error) => {
+          if (error) {
+            console.error('Ошибка при записи файла:', error);
           } else {
-            console.log('Такого в базе данных нет');
-            resolve();
+            console.log('Число успешно обновлено в файле:', num);
           }
-        })
-        .catch((error) => {
-          console.error('Ошибка при загрузке данных:', error);
-          reject(error);
         });
-    }, 2000);
-  });
-}
+      }, 20000);
+    } else {
+      console.log('Загрузка данных завершена');
+    }
+  } catch (error) {
+    console.error('Ошибка при загрузке данных:', error);
+  }
+};
 
 const startAllRecord = initialUrl + `page=${num}`;
-if (!fs.existsSync(path)) {
-  fetchData(startAllRecord);
-} else {
-  console.log('пошла вторая запись');
-  // fetchData(startAllRecord);
+fetchData(startAllRecord);
 
-  // ежедневная проверка и загрузка новых обновлений по торговым маркам
-  const lastUpdateMark = () => {
-    const sqllastDate = `SELECT * FROM marks_info`;
-
-    connection.query(sqllastDate, function (err, results) {
-      if (err) console.log(err);
-      // берем данные из last_update (последней записи в бд) и превращаем в нужную нам дату
-      let date = new Date(results[results.length - 1].last_update);
-      let day = date.getDate().toString().padStart(2, '0');
-      let month = (date.getMonth() + 1).toString().padStart(2, '0');
-      let year = date.getFullYear();
-      lastUpdate = `${day}.${month}.${year}`;
-      console.log('>>>>>>>>lastdate', lastUpdate, results[results.length - 1].number);
-
-      return new Promise((resolve, reject) => {
-        setTimeout(() => {
-          fetch(
-            `http://sis.nipo.gov.ua/api/v1/open-data/?last_update_from=${lastUpdate}&obj_type=4&page=${num}`
-          )
-            .then((res) => res.json())
-            .then((data) => {
-              for (const result of data.results) {
-                const createTableMarks_info = `
-                    INSERT INTO marks_info (name_marks, name_applicant, address_applicant, name_owner, address_owner, number, registration_number,  status,   adress_img, last_update) VALUES ('${result.data.WordMarkSpecification.MarkSignificantVerbalElement[0]['#text']}', '${result.data.HolderDetails.Holder[0].HolderAddressBook.FormattedNameAddress.Name.FreeFormatName.FreeFormatNameDetails.FreeFormatNameLine}', '${result.data.HolderDetails.Holder[0].HolderAddressBook.FormattedNameAddress.Address.FreeFormatAddress.FreeFormatAddressLine}', '${result.data.ApplicantDetails.Applicant[0].ApplicantAddressBook.FormattedNameAddress.Name.FreeFormatName.FreeFormatNameDetails.FreeFormatNameLine}', '${result.data.ApplicantDetails.Applicant[0].ApplicantAddressBook.FormattedNameAddress.Address.FreeFormatAddress.FreeFormatAddressLine}', '${result.data.ApplicationNumber}', '${result.data.RegistrationNumber}', '${result.obj_state}', '${result.data.MarkImageDetails.MarkImage.MarkImageFilename}', '${result.last_update}')
-                  `;
-                connection.query(createTableMarks_info, (err, results) => {
-                  if (err) {
-                    console.error('Ошибка при добавлении данных:', err);
-                  } else {
-                    console.log('Данные успешно добавлены');
-
-                    const classDescription =
-                      result.data.GoodsServicesDetails.GoodsServices.ClassDescriptionDetails
-                        .ClassDescription[0];
-                    const classNumber = classDescription.ClassNumber;
-
-                    classDescription.ClassificationTermDetails.ClassificationTerm.forEach(
-                      (term) => {
-                        const termText = term.ClassificationTermText;
-
-                        const createTableNumberKeys = `INSERT INTO number_class (number_class, class_info, mark_id) VALUES (?, ?, ?)`;
-                        const values = [classNumber, termText, results.insertId];
-
-                        connection.query(createTableNumberKeys, values, (err) => {
-                          if (err) {
-                            console.error(
-                              'Ошибка при добавлении данных в таблицу номеров ключей',
-                              err
-                            );
-                          } else {
-                            console.log('Данные в таблицу ключей добавлены');
-                          }
-                        });
-                      }
-                    );
-                  }
-                });
-              }
-
-              if (num < allPages) {
-                num++;
-                const nextUrl = `http://sis.nipo.gov.ua/api/v1/open-data/?last_update_from=${lastUpdate}&obj_type=4&page=${num}`;
-                fetchData(nextUrl).then(resolve).catch(reject);
-              } else {
-                console.log('Такого в базе данных нет');
-                resolve();
-              }
-            })
-            .catch((error) => {
-              console.error('Ошибка при загрузке данных:', error);
-              reject(error);
+const lastUpdateMark = async () => {
+  const sqllastDate = `SELECT * FROM marks_info`;
+  connection.query(sqllastDate, async (err, results) => {
+    if (err) console.log(err);
+    let date = new Date(results[results.length - 1].last_update);
+    let day = date.getDate().toString().padStart(2, '0');
+    let month = (date.getMonth() + 1).toString().padStart(2, '0');
+    let year = date.getFullYear();
+    lastUpdate = `${day}.${month}.${year}`;
+    console.log('>>>>>>>>lastdate', lastUpdate, results[results.length - 1].number);
+    try {
+      const response = await fetch(
+        `http://sis.nipo.gov.ua/api/v1/open-data/?last_update_from=${lastUpdate}&obj_type=4&page=${num}`
+      );
+      if (!response.ok) {
+        throw new Error(`Ошибка сети: ${response.status}`);
+      }
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error('Ожидался JSON, но получен HTML');
+      }
+      const data = await response.json();
+      for (const result of data.results) {
+        const createTableMarks_info = `
+          INSERT INTO marks_info (name_marks, name_applicant, address_applicant, name_owner, address_owner, number, registration_number, status, adress_img, last_update) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `;
+        const values = [
+          result.data.WordMarkSpecification.MarkSignificantVerbalElement[0]['#text'],
+          result.data.HolderDetails !== undefined
+            ? result.data.HolderDetails.Holder[0].HolderAddressBook.FormattedNameAddress.Name
+                .FreeFormatName.FreeFormatNameDetails.FreeFormatNameLine
+            : '* - інформація тимчасово обмежена',
+          result.data.HolderDetails !== undefined
+            ? result.data.HolderDetails.Holder[0].HolderAddressBook.FormattedNameAddress.Address
+                .FreeFormatAddress.FreeFormatAddressLine
+            : '* - інформація тимчасово обмежена',
+          result.data.ApplicantDetails !== undefined
+            ? result.data.ApplicantDetails.Applicant[0].ApplicantAddressBook.FormattedNameAddress
+                .Name.FreeFormatName.FreeFormatNameDetails.FreeFormatNameLine
+            : '* - інформація тимчасово обмежена',
+          result.data.ApplicantDetails !== undefined
+            ? result.data.ApplicantDetails.Applicant[0].ApplicantAddressBook.FormattedNameAddress
+                .Address.FreeFormatAddress.FreeFormatAddressLine
+            : '* - інформація тимчасово обмежена',
+          result.data.ApplicationNumber,
+          result.data.RegistrationNumber,
+          result.data.registration_status_color,
+          result.data.MarkImageDetails.MarkImage.MarkImageFilename,
+          result.last_update,
+        ];
+        console.log(values);
+        connection.query(createTableMarks_info, values, (err, results) => {
+          if (err) {
+            console.error('Ошибка при добавлении данных:', err);
+          } else {
+            console.log('Данные успешно добавлены');
+            const classDescription =
+              result.data.GoodsServicesDetails.GoodsServices.ClassDescriptionDetails
+                .ClassDescription[0];
+            const classNumber = classDescription.ClassNumber;
+            classDescription.ClassificationTermDetails.ClassificationTerm.forEach((term) => {
+              const termText = term.ClassificationTermText;
+              const createTableNumberKeys = `INSERT INTO number_class (number_class, class_info, mark_id) VALUES (?, ?, ?)`;
+              const values = [classNumber, termText, results.insertId];
+              connection.query(createTableNumberKeys, values, (err) => {
+                if (err) {
+                  console.error('Ошибка при добавлении данных в таблицу номеров ключей', err);
+                } else {
+                  console.log('Данные в таблицу ключей добавлены');
+                }
+              });
             });
-        }, 2000);
-      });
-    });
-  };
-  // lastUpdateMark();
-  // запуск функции в определнное время
-  cron.schedule('0 23 * * *', lastUpdateMark);
-  // function showTimer() {
-  //   const now = new Date();
-  //   const targetTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 0, 0);
-  //   const diff = targetTime - now;
-  //   const hours = Math.floor(diff / (1000 * 60 * 60));
-  //   const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-  //   const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+          }
+        });
+      }
+      if (num < allPages) {
+        num++;
+        const nextUrl = `https://sis.nipo.gov.ua/api/v1/open-data/?obj_type=4&page=${num}`;
+        setTimeout(() => fetchData(nextUrl), 20000);
+      } else {
+        console.log('Загрузка данных завершена');
+      }
+    } catch (error) {
+      console.error('Ошибка при загрузке данных:', error);
+    }
+  });
+};
 
-  //   console.log(`До запуска функции осталось: ${hours} ч. ${minutes} мин. ${seconds} сек.`);
-  // }
-  // setInterval(showTimer, 1000);
-}
+// setInterval(lastUpdateMark, 24 * 60 * 60 * 1000);
 
-//
 app.listen(PORT, () => {
-  console.log('START', PORT);
+  console.log(`Server is running on port ${PORT}`);
 });
