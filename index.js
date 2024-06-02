@@ -113,7 +113,7 @@ handleDisconnect();
 //   }
 // }
 
-let num = 28269;
+let num = 28339;
 let allPages = 561454;
 const initialUrl = `https://sis.nipo.gov.ua/api/v1/open-data/?obj_type=4&`;
 
@@ -162,7 +162,8 @@ const fetchData = async (url) => {
         INSERT INTO marks_info (name_marks, name_applicant, address_applicant, name_owner, address_owner, number, registration_number, status, adress_img, last_update) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
       const values = [
-        result.data.WordMarkSpecification.MarkSignificantVerbalElement !== undefined
+        result.data.WordMarkSpecification.MarkSignificantVerbalElement !== undefined &&
+        result.data.WordMarkSpecification.MarkSignificantVerbalElement !== null
           ? result.data.WordMarkSpecification.MarkSignificantVerbalElement[0]['#text']
           : '* - інформація тимчасово обмежена',
         result.data.HolderDetails !== undefined
