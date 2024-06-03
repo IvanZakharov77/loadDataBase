@@ -95,25 +95,7 @@ function checkAndCreateTables() {
 
 handleDisconnect();
 
-// async function fetchWithRetry(url, options = {}, retries = 3, backoff = 3000) {
-//   for (let i = 0; i < retries; i++) {
-//     try {
-//       const res = await fetch(url, options);
-//       if (!res.ok) {
-//         throw new Error(`Ошибка сети: ${res.status}`);
-//       }
-//       return res.json();
-//     } catch (err) {
-//       if (i === retries - 1) {
-//         throw err;
-//       }
-//       console.error(`Попытка ${i + 1} не удалась, повтор через ${backoff} мс`, err);
-//       await new Promise((resolve) => setTimeout(resolve, backoff));
-//     }
-//   }
-// }
-
-let num = 28339;
+let num = 28456;
 let allPages = 561454;
 const initialUrl = `https://sis.nipo.gov.ua/api/v1/open-data/?obj_type=4&`;
 
@@ -126,25 +108,13 @@ fs.readFile('number.txt', 'utf8', (err, data) => {
 
   num = parseInt(data, 10);
 
-  // Проверяем, успешно ли преобразовано значение в число
   if (isNaN(num)) {
     console.error('Содержимое файла не является числом');
   } else {
     console.log('Число из файла:', num);
-    // Здесь вы можете использовать переменную `number` как вам нужно
   }
 });
 //
-
-// const gettingСount = async (url) => {
-//   await fetch(url)
-//     .then((res) =>  res.json())
-//     .then((data) => {
-//       console.log('!!', data.count);
-//       allPages =  Math.ceil(data.count / 10);
-//     });
-// };
-// gettingСount(initialUrl);
 
 const fetchData = async (url) => {
   try {
@@ -162,9 +132,11 @@ const fetchData = async (url) => {
         INSERT INTO marks_info (name_marks, name_applicant, address_applicant, name_owner, address_owner, number, registration_number, status, adress_img, last_update) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
       const values = [
-        result.data.WordMarkSpecification.MarkSignificantVerbalElement !== undefined &&
-        result.data.WordMarkSpecification.MarkSignificantVerbalElement !== null
-          ? result.data.WordMarkSpecification.MarkSignificantVerbalElement[0]['#text']
+        result.data.WordMarkSpecification !== null
+          ? result.data.WordMarkSpecification.MarkSignificantVerbalElement !== undefined ||
+            result.data.WordMarkSpecification.MarkSignificantVerbalElement !== null
+            ? result.data.WordMarkSpecification.MarkSignificantVerbalElement[0]['#text']
+            : '* - інформація тимчасово обмежена'
           : '* - інформація тимчасово обмежена',
         result.data.HolderDetails !== undefined
           ? result.data.HolderDetails.Holder[0].HolderAddressBook.FormattedNameAddress.Name
@@ -204,18 +176,39 @@ const fetchData = async (url) => {
                 : { termText: '* - інформація тимчасово обмежена' }
               : { termText: '* - інформація тимчасово обмежена' };
           const classNumber = classDescription.ClassNumber;
-          classDescription.ClassificationTermDetails.ClassificationTerm.forEach((term) => {
-            const termText = term.ClassificationTermText;
-            const createTableNumberKeys = `INSERT INTO number_class (number_class, class_info, mark_id) VALUES (?, ?, ?)`;
-            const values = [classNumber, termText, results.insertId];
-            connection.query(createTableNumberKeys, values, (err) => {
-              if (err) {
-                console.error('Ошибка при добавлении данных в таблицу номеров ключей', err);
-              } else {
-                console.log('Данные в таблицу ключей добавлены');
-              }
-            });
-          });
+
+          classDescription.ClassificationTermDetails.ClassificationTerm !== undefined
+            ? classDescription.ClassificationTermDetails.ClassificationTerm.forEach((term) => {
+                const termText = term.ClassificationTermText;
+                const createTableNumberKeys = `INSERT INTO number_class (number_class, class_info, mark_id) VALUES (?, ?, ?)`;
+                const values = [classNumber, termText, results.insertId];
+                connection.query(createTableNumberKeys, values, (err) => {
+                  if (err) {
+                    console.error('Ошибка при добавлении данных в таблицу номеров ключей', err);
+                  } else {
+                    console.log('Данные в таблицу ключей добавлены');
+                  }
+                });
+              })
+            : classDescription.ClassificationTermDetails.ClassificationTerm[
+                {
+                  ClassificationTermLanguageCode: '* - інформація тимчасово обмежена',
+                  ClassificationTermText: '* - інформація тимчасово обмежена',
+                }
+              ];
+
+          // classDescription.ClassificationTermDetails.ClassificationTerm.forEach((term) => {
+          //   const termText = term.ClassificationTermText;
+          //   const createTableNumberKeys = `INSERT INTO number_class (number_class, class_info, mark_id) VALUES (?, ?, ?)`;
+          //   const values = [classNumber, termText, results.insertId];
+          //   connection.query(createTableNumberKeys, values, (err) => {
+          //     if (err) {
+          //       console.error('Ошибка при добавлении данных в таблицу номеров ключей', err);
+          //     } else {
+          //       console.log('Данные в таблицу ключей добавлены');
+          //     }
+          //   });
+          // });
         }
       });
     }
