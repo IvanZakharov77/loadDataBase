@@ -177,25 +177,38 @@ const fetchData = async (url) => {
               : { termText: '* - інформація тимчасово обмежена' };
           const classNumber = classDescription.ClassNumber;
 
-          classDescription.ClassificationTermDetails.ClassificationTerm !== undefined
-            ? classDescription.ClassificationTermDetails.ClassificationTerm.forEach((term) => {
-                const termText = term.ClassificationTermText;
-                const createTableNumberKeys = `INSERT INTO number_class (number_class, class_info, mark_id) VALUES (?, ?, ?)`;
-                const values = [classNumber, termText, results.insertId];
-                connection.query(createTableNumberKeys, values, (err) => {
-                  if (err) {
-                    console.error('Ошибка при добавлении данных в таблицу номеров ключей', err);
-                  } else {
-                    console.log('Данные в таблицу ключей добавлены');
-                  }
-                });
-              })
-            : classDescription.ClassificationTermDetails.ClassificationTerm[
-                {
-                  ClassificationTermLanguageCode: '* - інформація тимчасово обмежена',
-                  ClassificationTermText: '* - інформація тимчасово обмежена',
+          if (
+            classDescription &&
+            classDescription.ClassificationTermDetails &&
+            classDescription.ClassificationTermDetails.ClassificationTerm
+          ) {
+            classDescription.ClassificationTermDetails.ClassificationTerm.forEach((term) => {
+              const termText = term.ClassificationTermText;
+              const createTableNumberKeys = `INSERT INTO number_class (number_class, class_info, mark_id) VALUES (?, ?, ?)`;
+              const values = [classNumber, termText, results.insertId];
+              connection.query(createTableNumberKeys, values, (err) => {
+                if (err) {
+                  console.error('Ошибка при добавлении данных в таблицу номеров ключей', err);
+                } else {
+                  console.log('Данные в таблицу ключей добавлены');
                 }
-              ];
+              });
+            });
+          } else {
+            const fallbackTerm = {
+              ClassificationTermLanguageCode: '* - інформація тимчасово обмежена',
+              ClassificationTermText: '* - інформація тимчасово обмежена',
+            };
+            const createTableNumberKeys = `INSERT INTO number_class (number_class, class_info, mark_id) VALUES (?, ?, ?)`;
+            const values = [classNumber, fallbackTerm.ClassificationTermText, results.insertId];
+            connection.query(createTableNumberKeys, values, (err) => {
+              if (err) {
+                console.error('Ошибка при добавлении данных в таблицу номеров ключей', err);
+              } else {
+                console.log('Данные в таблицу ключей добавлены');
+              }
+            });
+          }
 
           // classDescription.ClassificationTermDetails.ClassificationTerm.forEach((term) => {
           //   const termText = term.ClassificationTermText;
