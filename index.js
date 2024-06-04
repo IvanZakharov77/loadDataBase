@@ -95,7 +95,7 @@ function checkAndCreateTables() {
 
 handleDisconnect();
 
-let num = 28456;
+let num = 29261;
 let allPages = 561454;
 const initialUrl = `https://sis.nipo.gov.ua/api/v1/open-data/?obj_type=4&`;
 
@@ -168,15 +168,15 @@ const fetchData = async (url) => {
           console.log('Данные успешно добавлены');
           const classDescription =
             result.data.GoodsServicesDetails !== null
-              ? result.data.GoodsServicesDetails.GoodsServices !==
-                result.data.GoodsServicesDetails.GoodsServices.ClassDescriptionDetails
-                  .ClassDescription[0]
+              ? result.data.GoodsServicesDetails.GoodsServices !== null
                 ? result.data.GoodsServicesDetails.GoodsServices.ClassDescriptionDetails
                     .ClassDescription[0]
                 : { termText: '* - інформація тимчасово обмежена' }
-              : { termText: '* - інформація тимчасово обмежена' };
-          const classNumber = classDescription.ClassNumber;
-
+              : undefined;
+          const classNumber =
+            classDescription?.ClassNumber !== undefined
+              ? classDescription.ClassNumber
+              : '* - інформація тимчасово обмежена';
           if (
             classDescription &&
             classDescription.ClassificationTermDetails &&
@@ -209,19 +209,6 @@ const fetchData = async (url) => {
               }
             });
           }
-
-          // classDescription.ClassificationTermDetails.ClassificationTerm.forEach((term) => {
-          //   const termText = term.ClassificationTermText;
-          //   const createTableNumberKeys = `INSERT INTO number_class (number_class, class_info, mark_id) VALUES (?, ?, ?)`;
-          //   const values = [classNumber, termText, results.insertId];
-          //   connection.query(createTableNumberKeys, values, (err) => {
-          //     if (err) {
-          //       console.error('Ошибка при добавлении данных в таблицу номеров ключей', err);
-          //     } else {
-          //       console.log('Данные в таблицу ключей добавлены');
-          //     }
-          //   });
-          // });
         }
       });
     }
