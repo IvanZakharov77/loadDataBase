@@ -95,7 +95,7 @@ function checkAndCreateTables() {
 
 handleDisconnect();
 
-let num = 29261;
+let num = 36952;
 let allPages = 561454;
 const initialUrl = `https://sis.nipo.gov.ua/api/v1/open-data/?obj_type=4&`;
 
@@ -132,8 +132,9 @@ const fetchData = async (url) => {
         INSERT INTO marks_info (name_marks, name_applicant, address_applicant, name_owner, address_owner, number, registration_number, status, adress_img, last_update) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
       const values = [
-        result.data.WordMarkSpecification !== null
-          ? result.data.WordMarkSpecification.MarkSignificantVerbalElement !== undefined ||
+        result.data.WordMarkSpecification !== null &&
+        result.data.WordMarkSpecification !== undefined
+          ? result.data.WordMarkSpecification.MarkSignificantVerbalElement !== undefined &&
             result.data.WordMarkSpecification.MarkSignificantVerbalElement !== null
             ? result.data.WordMarkSpecification.MarkSignificantVerbalElement[0]['#text']
             : '* - інформація тимчасово обмежена'
@@ -166,17 +167,29 @@ const fetchData = async (url) => {
           console.error('Ошибка при добавлении данных:', err);
         } else {
           console.log('Данные успешно добавлены');
+          // const classDescription =
+          // result.data.GoodsServicesDetails !== (undefined || null)
+          //   ? result.data.GoodsServicesDetails.GoodsServices !==( undefined || null)
+          //     ? result.data.GoodsServicesDetails.GoodsServices.ClassDescriptionDetails
+          //         .ClassDescription[0]
+          //     : { termText: '* - інформація тимчасово обмежена' }
+          //   : { termText: '* - інформація тимчасово обмежена' };
+
           const classDescription =
+            result.data.GoodsServicesDetails !== undefined &&
             result.data.GoodsServicesDetails !== null
-              ? result.data.GoodsServicesDetails.GoodsServices !== null
+              ? result.data.GoodsServicesDetails.GoodsServices !== undefined &&
+                result.data.GoodsServicesDetails.GoodsServices !== null
                 ? result.data.GoodsServicesDetails.GoodsServices.ClassDescriptionDetails
                     .ClassDescription[0]
                 : { termText: '* - інформація тимчасово обмежена' }
-              : undefined;
+              : { termText: '* - інформація тимчасово обмежена' };
+
           const classNumber =
             classDescription?.ClassNumber !== undefined
               ? classDescription.ClassNumber
               : '* - інформація тимчасово обмежена';
+
           if (
             classDescription &&
             classDescription.ClassificationTermDetails &&
