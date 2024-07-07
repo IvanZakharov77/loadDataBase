@@ -20,7 +20,7 @@ const handleDisconnect = () => {
   connection.connect((err) => {
     if (err) {
       console.error('Ошибка при подключении к базе данных:', err);
-      setTimeout(handleDisconnect, 2000); // Повторное подключение через 2 секунды
+      setTimeout(handleDisconnect, 20000); // Повторное подключение через 2 секунды
     } else {
       console.log('Подключено к базе данных');
       // Проверка и создание таблиц
@@ -62,7 +62,10 @@ function checkAndCreateTables() {
           registration_number VARCHAR(255) UNIQUE,
           status VARCHAR(255),
           adress_img VARCHAR(255),
-          last_update VARCHAR(255)
+          last_update VARCHAR(255),
+          date_submission VARCHAR(255),
+          date_registration VARCHAR(255),
+          date_end VARCHAR(255)
         )`,
         (err) => {
           if (err) {
@@ -101,8 +104,8 @@ function checkAndCreateTables() {
 
 handleDisconnect();
 
-let num = 25000;
-let allPages = 56160;
+let num = 1;
+let allPages = 56150;
 const initialUrl = `https://sis.nipo.gov.ua/api/v1/open-data/?obj_type=4&`;
 
 //
@@ -137,10 +140,23 @@ const fetchData = async (url) => {
     for (const result of data.results) {
       const newId = uuidv4();
       const createTableMarks_info = `
-        INSERT INTO marks_info (id, name_marks, name_applicant, address_applicant, name_owner, address_owner, number, registration_number, status, adress_img, last_update) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `;
+      UPDATE marks_info 
+      SET name_marks = ?, 
+          name_applicant = ?, 
+          address_applicant = ?, 
+          name_owner = ?, 
+          address_owner = ?, 
+          number = ?, 
+          status = ?, 
+          adress_img = ?, 
+          last_update = ?, 
+          date_submission = ?, 
+          date_registration = ?,
+          date_update = ?,
+          date_end = ?
+      WHERE registration_number = ?
+    `;
       const values = [
-        newId,
         result.data.WordMarkSpecification !== null &&
         result.data.WordMarkSpecification !== undefined
           ? result.data.WordMarkSpecification.MarkSignificantVerbalElement !== undefined &&
@@ -165,10 +181,15 @@ const fetchData = async (url) => {
               .Address.FreeFormatAddress.FreeFormatAddressLine
           : '* - інформація тимчасово обмежена',
         result.data.ApplicationNumber,
-        result.data.RegistrationNumber,
+
         result.data.registration_status_color,
         result.data.MarkImageDetails.MarkImage.MarkImageFilename,
         result.last_update,
+        result.data.ApplicationDate,
+        result.data.RegistrationDate,
+        result.data.ProlonagationExpiryDate,
+        result.data.ExpiryDate,
+        result.data.RegistrationNumber,
       ];
       console.log(values);
       connection.query(createTableMarks_info, values, (err, results) => {
@@ -177,63 +198,63 @@ const fetchData = async (url) => {
         } else {
           console.log('Данные успешно добавлены');
 
-          const classDescription = result.data.GoodsServicesDetails?.GoodsServices
-            ?.ClassDescriptionDetails?.ClassDescription ?? [
-            { termText: '* - інформація тимчасово обмежена' },
-          ];
-          try {
-            classDescription.map((classDescription) => {
-              const classNumber =
-                classDescription.ClassNumber || '* - інформація тимчасово обмежена';
-              if (classDescription?.ClassificationTermDetails?.ClassificationTerm) {
-                let classRecordCounter = [
-                  classDescription.ClassificationTermDetails.ClassificationTerm.length,
-                ];
-                // let sum = 0;
-                for (let i = 0; i < classRecordCounter.length; i++) {
-                  sum += classRecordCounter[i];
-                }
-                classRecordCounter.push();
-                console.log('>>>>>>>>>>', sum);
-                classDescription.ClassificationTermDetails.ClassificationTerm.map((term) => {
-                  const termText = term.ClassificationTermText;
-                  const createTableNumberKeys = `INSERT INTO number_class (number_class, class_info, mark_id) VALUES (?, ?, ?)`;
-                  const values = [classNumber, termText, results.insertId];
-                  return new Promise((resolve, reject) => {
-                    connection.query(createTableNumberKeys, values, (err) => {
-                      if (err) {
-                        console.error('Ошибка при добавлении данных в таблицу номеров ключей', err);
-                        reject(err);
-                      } else {
-                        console.log('Данные в таблицу ключей добавлены');
-                        resolve();
-                      }
-                    });
-                  });
-                });
-              } else {
-                const fallbackTerm = {
-                  ClassificationTermLanguageCode: '* - інформація тимчасово обмежена',
-                  ClassificationTermText: '* - інформація тимчасово обмежена',
-                };
-                const createTableNumberKeys = `INSERT INTO number_class (number_class, class_info, mark_id) VALUES (?, ?, ?)`;
-                const values = [classNumber, fallbackTerm.ClassificationTermText, results.insertId];
-                return new Promise((resolve, reject) => {
-                  connection.query(createTableNumberKeys, values, (err) => {
-                    if (err) {
-                      console.error('Ошибка при добавлении данных в таблицу номеров ключей', err);
-                      reject(err);
-                    } else {
-                      console.log('Данные в таблицу ключей добавлены');
-                      resolve();
-                    }
-                  });
-                });
-              }
-            });
-          } catch (error) {
-            reject(error);
-          }
+          // const classDescription = result.data.GoodsServicesDetails?.GoodsServices
+          //   ?.ClassDescriptionDetails?.ClassDescription ?? [
+          //   { termText: '* - інформація тимчасово обмежена' },
+          // ];
+          // try {
+          //   classDescription.map((classDescription) => {
+          //     const classNumber =
+          //       classDescription.ClassNumber || '* - інформація тимчасово обмежена';
+          //     if (classDescription?.ClassificationTermDetails?.ClassificationTerm) {
+          //       let classRecordCounter = [
+          //         classDescription.ClassificationTermDetails.ClassificationTerm.length,
+          //       ];
+          //       // let sum = 0;
+          //       for (let i = 0; i < classRecordCounter.length; i++) {
+          //         sum += classRecordCounter[i];
+          //       }
+          //       classRecordCounter.push();
+          //       console.log('>>>>>>>>>>', sum);
+          //       classDescription.ClassificationTermDetails.ClassificationTerm.map((term) => {
+          //         const termText = term.ClassificationTermText;
+          //         const createTableNumberKeys = `INSERT INTO number_class (number_class, class_info, mark_id) VALUES (?, ?, ?)`;
+          //         const values = [classNumber, termText, results.insertId];
+          //         return new Promise((resolve, reject) => {
+          //           connection.query(createTableNumberKeys, values, (err) => {
+          //             if (err) {
+          //               // console.error('Ошибка при добавлении данных в таблицу номеров ключей', err);
+          //               reject(err);
+          //             } else {
+          //               console.log('Данные в таблицу ключей добавлены');
+          //               resolve();
+          //             }
+          //           });
+          //         });
+          //       });
+          //     } else {
+          //       const fallbackTerm = {
+          //         ClassificationTermLanguageCode: '* - інформація тимчасово обмежена',
+          //         ClassificationTermText: '* - інформація тимчасово обмежена',
+          //       };
+          //       const createTableNumberKeys = `INSERT INTO number_class (number_class, class_info, mark_id) VALUES (?, ?, ?)`;
+          //       const values = [classNumber, fallbackTerm.ClassificationTermText, results.insertId];
+          //       return new Promise((resolve, reject) => {
+          //         connection.query(createTableNumberKeys, values, (err) => {
+          //           if (err) {
+          //             // console.error('Ошибка при добавлении данных в таблицу номеров ключей', err);
+          //             reject(err);
+          //           } else {
+          //             console.log('Данные в таблицу ключей добавлены');
+          //             resolve();
+          //           }
+          //         });
+          //       });
+          //     }
+          //   });
+          // } catch (error) {
+          //   reject(error);
+          // }
         }
       });
     }
@@ -256,8 +277,10 @@ const fetchData = async (url) => {
       console.log('Загрузка данных завершена');
     }
   } catch (error) {
-    num - 3;
     console.error('Ошибка при загрузке данных:', error);
+    setTimeout(() => {
+      fetchData(url);
+    }, 15000);
   }
 };
 
@@ -288,9 +311,12 @@ const lastUpdateMark = async () => {
       const data = await response.json();
       for (const result of data.results) {
         const createTableMarks_info = `
-          INSERT INTO marks_info (name_marks, name_applicant, address_applicant, name_owner, address_owner, number, registration_number, status, adress_img, last_update) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `;
+        INSERT INTO marks_info (id, name_marks, name_applicant, address_applicant, name_owner, address_owner, number, registration_number, status, adress_img, last_update,  date_submission,
+        date_registration,
+        date_end) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `;
         const values = [
+          newId,
           result.data.WordMarkSpecification !== null &&
           result.data.WordMarkSpecification !== undefined
             ? result.data.WordMarkSpecification.MarkSignificantVerbalElement !== undefined &&
@@ -319,6 +345,9 @@ const lastUpdateMark = async () => {
           result.data.registration_status_color,
           result.data.MarkImageDetails.MarkImage.MarkImageFilename,
           result.last_update,
+          result.data.ApplicationDate,
+          result.data.RegistrationDate,
+          result.data.ProlonagationExpiryDate,
         ];
         console.log(values);
         connection.query(createTableMarks_info, values, (err, results) => {
