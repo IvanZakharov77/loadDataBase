@@ -2,24 +2,20 @@ import express from 'express';
 import fetch from 'node-fetch';
 import mysql from 'mysql';
 import fs from 'fs';
+import { v4 as uuidv4 } from 'uuid';
 
 const PORT = 5000;
 const app = express();
 
 app.use(express.json());
 
-// const connection = mysql.createConnection({
-//   host: 'a1dia751.mysql.tools',
-//   user: 'a1dia751_diakommarks',
-//   password: 'FryBf)4*28',
-//   database: 'a1dia751_diakommarks',
-// });
 const connection = mysql.createConnection({
-  host: 'localhost',
-  user: 'root',
-  password: '',
-  database: 'diakom_tm',
+  host: 'a1dia751.mysql.tools',
+  user: 'a1dia751_diakommarks',
+  password: 'FryBf)4*28',
+  database: 'a1dia751_diakommarks',
 });
+
 const handleDisconnect = () => {
   connection.connect((err) => {
     if (err) {
@@ -35,12 +31,16 @@ const handleDisconnect = () => {
   connection.on('error', (err) => {
     console.error('Ошибка соединения с базой данных:', err);
     if (err.code === 'PROTOCOL_CONNECTION_LOST') {
-      handleDisconnect(); // Повторное подключение при потере соединения
+      setTimeout(() => {
+        handleDisconnect();
+      }, 10000); // Повторное подключение при потере соединения
     } else {
       throw err;
     }
   });
 };
+
+// id INT AUTO_INCREMENT PRIMARY KEY,
 
 function checkAndCreateTables() {
   const firstTableName = 'marks_info';
@@ -52,14 +52,14 @@ function checkAndCreateTables() {
     } else if (results.length === 0) {
       connection.query(
         `CREATE TABLE ${firstTableName} (
-          id INT AUTO_INCREMENT PRIMARY KEY,
+          id CHAR(36) PRIMARY KEY,
           name_marks VARCHAR(255),
           name_applicant VARCHAR(255),
           address_applicant VARCHAR(255),
           name_owner VARCHAR(255),
           address_owner VARCHAR(255),
-          number VARCHAR(255) UNIQUE,
-          registration_number VARCHAR(255),
+          number VARCHAR(255),
+          registration_number VARCHAR(255) UNIQUE,
           status VARCHAR(255),
           adress_img VARCHAR(255),
           last_update VARCHAR(255)
@@ -101,8 +101,8 @@ function checkAndCreateTables() {
 
 handleDisconnect();
 
-let num = 1;
-let allPages = 561454;
+let num = 25000;
+let allPages = 56160;
 const initialUrl = `https://sis.nipo.gov.ua/api/v1/open-data/?obj_type=4&`;
 
 //
@@ -123,100 +123,83 @@ fs.readFile('number.txt', 'utf8', (err, data) => {
 //
 
 const fetchData = async (url) => {
+  let sum = 0;
   try {
     const response = await fetch(url);
     if (!response.ok) {
       console.error(`Ошибка сети: ${response.status}`);
-      return; // Добавлено возвращение, чтобы прекратить выполнение функции при ошибке сети
     }
     const contentType = response.headers.get('content-type');
     if (!contentType || !contentType.includes('application/json')) {
       throw new Error('Ожидался JSON, но получен HTML');
     }
     const data = await response.json();
-
     for (const result of data.results) {
-      // Объединяем все текстовые значения из MarkSignificantVerbalElement в одну строку через запятую
-
+      const newId = uuidv4();
       const createTableMarks_info = `
-        INSERT INTO marks_info (name_marks, name_applicant, address_applicant, name_owner, address_owner, number, registration_number, status, adress_img, last_update) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO marks_info (id, name_marks, name_applicant, address_applicant, name_owner, address_owner, number, registration_number, status, adress_img, last_update) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
-
-      const markSignificantVerbalElementText =
-        result.data.WordMarkSpecification?.MarkSignificantVerbalElement.map(
-          (element) => element['#text']
-        ).join(', ') || '* - інформація тимчасово обмежена';
-
       const values = [
-        markSignificantVerbalElementText,
-        result.data.HolderDetails?.Holder[0].HolderAddressBook.FormattedNameAddress.Name
-          .FreeFormatName.FreeFormatNameDetails.FreeFormatNameLine ||
-          '* - інформація тимчасово обмежена',
-        result.data.HolderDetails?.Holder[0].HolderAddressBook.FormattedNameAddress.Address
-          .FreeFormatAddress.FreeFormatAddressLine || '* - інформація тимчасово обмежена',
-        result.data.ApplicantDetails?.Applicant[0].ApplicantAddressBook.FormattedNameAddress.Name
-          .FreeFormatName.FreeFormatNameDetails.FreeFormatNameLine ||
-          '* - інформація тимчасово обмежена',
-        result.data.ApplicantDetails?.Applicant[0].ApplicantAddressBook.FormattedNameAddress.Address
-          .FreeFormatAddress.FreeFormatAddressLine || '* - інформація тимчасово обмежена',
+        newId,
+        result.data.WordMarkSpecification !== null &&
+        result.data.WordMarkSpecification !== undefined
+          ? result.data.WordMarkSpecification.MarkSignificantVerbalElement !== undefined &&
+            result.data.WordMarkSpecification.MarkSignificantVerbalElement !== null
+            ? result.data.WordMarkSpecification.MarkSignificantVerbalElement[0]['#text']
+            : '* - інформація тимчасово обмежена'
+          : '* - інформація тимчасово обмежена',
+        result.data.HolderDetails !== undefined
+          ? result.data.HolderDetails.Holder[0].HolderAddressBook.FormattedNameAddress.Name
+              .FreeFormatName.FreeFormatNameDetails.FreeFormatNameLine
+          : '* - інформація тимчасово обмежена',
+        result.data.HolderDetails !== undefined
+          ? result.data.HolderDetails.Holder[0].HolderAddressBook.FormattedNameAddress.Address
+              .FreeFormatAddress.FreeFormatAddressLine
+          : '* - інформація тимчасово обмежена',
+        result.data.ApplicantDetails !== undefined
+          ? result.data.ApplicantDetails.Applicant[0].ApplicantAddressBook.FormattedNameAddress.Name
+              .FreeFormatName.FreeFormatNameDetails.FreeFormatNameLine
+          : '* - інформація тимчасово обмежена',
+        result.data.ApplicantDetails !== undefined
+          ? result.data.ApplicantDetails.Applicant[0].ApplicantAddressBook.FormattedNameAddress
+              .Address.FreeFormatAddress.FreeFormatAddressLine
+          : '* - інформація тимчасово обмежена',
         result.data.ApplicationNumber,
         result.data.RegistrationNumber,
         result.data.registration_status_color,
         result.data.MarkImageDetails.MarkImage.MarkImageFilename,
         result.last_update,
       ];
+      console.log(values);
+      connection.query(createTableMarks_info, values, (err, results) => {
+        if (err) {
+          console.error('Ошибка при добавлении данных:', err);
+        } else {
+          console.log('Данные успешно добавлены');
 
-      await new Promise((resolve, reject) => {
-        connection.query(createTableMarks_info, values, async (err, results) => {
-          if (err) {
-            console.error('Ошибка при добавлении данных:', err);
-            reject(err);
-          } else {
-            console.log('Данные успешно добавлены');
-
-            const classDescriptions = result.data.GoodsServicesDetails?.GoodsServices
-              ?.ClassDescriptionDetails?.ClassDescription ?? [
-              { termText: '* - інформація тимчасово обмежена' },
-            ];
-
-            try {
-              const insertPromises = classDescriptions.map(async (classDescription) => {
-                const classNumber =
-                  classDescription.ClassNumber || '* - інформація тимчасово обмежена';
-                if (classDescription?.ClassificationTermDetails?.ClassificationTerm) {
-                  const termPromises =
-                    classDescription.ClassificationTermDetails.ClassificationTerm.map((term) => {
-                      const termText = term.ClassificationTermText;
-                      const createTableNumberKeys = `INSERT INTO number_class (number_class, class_info, mark_id) VALUES (?, ?, ?)`;
-                      const values = [classNumber, termText, results.insertId];
-                      return new Promise((resolve, reject) => {
-                        connection.query(createTableNumberKeys, values, (err) => {
-                          if (err) {
-                            console.error(
-                              'Ошибка при добавлении данных в таблицу номеров ключей',
-                              err
-                            );
-                            reject(err);
-                          } else {
-                            console.log('Данные в таблицу ключей добавлены');
-                            resolve();
-                          }
-                        });
-                      });
-                    });
-                  await Promise.all(termPromises);
-                } else {
-                  const fallbackTerm = {
-                    ClassificationTermLanguageCode: '* - інформація тимчасово обмежена',
-                    ClassificationTermText: '* - інформація тимчасово обмежена',
-                  };
+          const classDescription = result.data.GoodsServicesDetails?.GoodsServices
+            ?.ClassDescriptionDetails?.ClassDescription ?? [
+            { termText: '* - інформація тимчасово обмежена' },
+          ];
+          try {
+            classDescription.map((classDescription) => {
+              const classNumber =
+                classDescription.ClassNumber || '* - інформація тимчасово обмежена';
+              if (classDescription?.ClassificationTermDetails?.ClassificationTerm) {
+                let classRecordCounter = [
+                  classDescription.ClassificationTermDetails.ClassificationTerm.length,
+                ];
+                // let sum = 0;
+                for (let i = 0; i < classRecordCounter.length; i++) {
+                  sum += classRecordCounter[i];
+                }
+                classRecordCounter.push();
+                console.log('>>>>>>>>>>', sum);
+                classDescription.ClassificationTermDetails.ClassificationTerm.map((term) => {
+                  const termText = term.ClassificationTermText;
                   const createTableNumberKeys = `INSERT INTO number_class (number_class, class_info, mark_id) VALUES (?, ?, ?)`;
-                  const values = [
-                    classNumber,
-                    fallbackTerm.ClassificationTermText,
-                    results.insertId,
-                  ];
-                  await new Promise((resolve, reject) => {
+                  const values = [classNumber, termText, results.insertId];
+                  return new Promise((resolve, reject) => {
                     connection.query(createTableNumberKeys, values, (err) => {
                       if (err) {
                         console.error('Ошибка при добавлении данных в таблицу номеров ключей', err);
@@ -227,24 +210,39 @@ const fetchData = async (url) => {
                       }
                     });
                   });
-                }
-              });
-              await Promise.all(insertPromises);
-              resolve();
-            } catch (error) {
-              reject(error);
-            }
+                });
+              } else {
+                const fallbackTerm = {
+                  ClassificationTermLanguageCode: '* - інформація тимчасово обмежена',
+                  ClassificationTermText: '* - інформація тимчасово обмежена',
+                };
+                const createTableNumberKeys = `INSERT INTO number_class (number_class, class_info, mark_id) VALUES (?, ?, ?)`;
+                const values = [classNumber, fallbackTerm.ClassificationTermText, results.insertId];
+                return new Promise((resolve, reject) => {
+                  connection.query(createTableNumberKeys, values, (err) => {
+                    if (err) {
+                      console.error('Ошибка при добавлении данных в таблицу номеров ключей', err);
+                      reject(err);
+                    } else {
+                      console.log('Данные в таблицу ключей добавлены');
+                      resolve();
+                    }
+                  });
+                });
+              }
+            });
+          } catch (error) {
+            reject(error);
           }
-        });
+        }
       });
     }
-
     console.log('mmmm', allPages);
     if (num < allPages) {
-      console.log('>>>>>', num);
       num += 1;
       const nextUrl = `https://sis.nipo.gov.ua/api/v1/open-data/?obj_type=4&page=${num}`;
       setTimeout(() => {
+        console.log('!!!!', sum);
         fetchData(nextUrl);
         fs.writeFile('number.txt', num.toString(), (error) => {
           if (error) {
@@ -253,11 +251,12 @@ const fetchData = async (url) => {
             console.log('Число успешно обновлено в файле:', num);
           }
         });
-      }, 10000);
+      }, 5000);
     } else {
       console.log('Загрузка данных завершена');
     }
   } catch (error) {
+    num - 3;
     console.error('Ошибка при загрузке данных:', error);
   }
 };
@@ -292,7 +291,13 @@ const lastUpdateMark = async () => {
           INSERT INTO marks_info (name_marks, name_applicant, address_applicant, name_owner, address_owner, number, registration_number, status, adress_img, last_update) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `;
         const values = [
-          result.data.WordMarkSpecification.MarkSignificantVerbalElement[0]['#text'],
+          result.data.WordMarkSpecification !== null &&
+          result.data.WordMarkSpecification !== undefined
+            ? result.data.WordMarkSpecification.MarkSignificantVerbalElement !== undefined &&
+              result.data.WordMarkSpecification.MarkSignificantVerbalElement !== null
+              ? result.data.WordMarkSpecification.MarkSignificantVerbalElement[0]['#text']
+              : '* - інформація тимчасово обмежена'
+            : '* - інформація тимчасово обмежена',
           result.data.HolderDetails !== undefined
             ? result.data.HolderDetails.Holder[0].HolderAddressBook.FormattedNameAddress.Name
                 .FreeFormatName.FreeFormatNameDetails.FreeFormatNameLine
@@ -321,29 +326,88 @@ const lastUpdateMark = async () => {
             console.error('Ошибка при добавлении данных:', err);
           } else {
             console.log('Данные успешно добавлены');
-            const classDescription =
-              result.data.GoodsServicesDetails.GoodsServices.ClassDescriptionDetails
-                .ClassDescription[0];
-            const classNumber = classDescription.ClassNumber;
-            classDescription.ClassificationTermDetails.ClassificationTerm.forEach((term) => {
-              const termText = term.ClassificationTermText;
-              const createTableNumberKeys = `INSERT INTO number_class (number_class, class_info, mark_id) VALUES (?, ?, ?)`;
-              const values = [classNumber, termText, results.insertId];
-              connection.query(createTableNumberKeys, values, (err) => {
-                if (err) {
-                  console.error('Ошибка при добавлении данных в таблицу номеров ключей', err);
+
+            const classDescription = result.data.GoodsServicesDetails?.GoodsServices
+              ?.ClassDescriptionDetails?.ClassDescription ?? [
+              { termText: '* - інформація тимчасово обмежена' },
+            ];
+            try {
+              classDescription.map((classDescription) => {
+                const classNumber =
+                  classDescription.ClassNumber || '* - інформація тимчасово обмежена';
+                if (classDescription?.ClassificationTermDetails?.ClassificationTerm) {
+                  let classRecordCounter = [
+                    classDescription.ClassificationTermDetails.ClassificationTerm.length,
+                  ];
+                  // let sum = 0;
+                  for (let i = 0; i < classRecordCounter.length; i++) {
+                    sum += classRecordCounter[i];
+                  }
+                  classRecordCounter.push();
+                  console.log('>>>>>>>>>>', sum);
+                  classDescription.ClassificationTermDetails.ClassificationTerm.map((term) => {
+                    const termText = term.ClassificationTermText;
+                    const createTableNumberKeys = `INSERT INTO number_class (number_class, class_info, mark_id) VALUES (?, ?, ?)`;
+                    const values = [classNumber, termText, results.insertId];
+                    return new Promise((resolve, reject) => {
+                      connection.query(createTableNumberKeys, values, (err) => {
+                        if (err) {
+                          console.error(
+                            'Ошибка при добавлении данных в таблицу номеров ключей',
+                            err
+                          );
+                          reject(err);
+                        } else {
+                          console.log('Данные в таблицу ключей добавлены');
+                          resolve();
+                        }
+                      });
+                    });
+                  });
                 } else {
-                  console.log('Данные в таблицу ключей добавлены');
+                  const fallbackTerm = {
+                    ClassificationTermLanguageCode: '* - інформація тимчасово обмежена',
+                    ClassificationTermText: '* - інформація тимчасово обмежена',
+                  };
+                  const createTableNumberKeys = `INSERT INTO number_class (number_class, class_info, mark_id) VALUES (?, ?, ?)`;
+                  const values = [
+                    classNumber,
+                    fallbackTerm.ClassificationTermText,
+                    results.insertId,
+                  ];
+                  return new Promise((resolve, reject) => {
+                    connection.query(createTableNumberKeys, values, (err) => {
+                      if (err) {
+                        console.error('Ошибка при добавлении данных в таблицу номеров ключей', err);
+                        reject(err);
+                      } else {
+                        console.log('Данные в таблицу ключей добавлены');
+                        resolve();
+                      }
+                    });
+                  });
                 }
               });
-            });
+            } catch (error) {
+              reject(error);
+            }
           }
         });
       }
       if (num < allPages) {
-        num++;
+        num += 1;
         const nextUrl = `https://sis.nipo.gov.ua/api/v1/open-data/?obj_type=4&page=${num}`;
-        setTimeout(() => fetchData(nextUrl), 20000);
+        setTimeout(() => {
+          console.log('!!!!', sum);
+          fetchData(nextUrl);
+          fs.writeFile('number.txt', num.toString(), (error) => {
+            if (error) {
+              console.error('Ошибка при записи файла:', error);
+            } else {
+              console.log('Число успешно обновлено в файле:', num);
+            }
+          });
+        }, 20000);
       } else {
         console.log('Загрузка данных завершена');
       }

@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  app:
+    image: node:14 # Используем официальный образ Node.js
+    container_name: my_node_app
+    working_dir: /app
+    volumes:
+      - .:/app
+    command: npm start
+    ports:
+      - "5000:5000"
+    environment:
+      - NODE_ENV=development
+    depends_on:
+      - db
+    deploy:
+      resources:
+        limits:
+          memory: 512M # Лимит памяти
+        reservations:
+          memory: 256M # Резервирование памяти
+
+  db:
+    image: mysql:5.7
+    container_name: my_mysql_db
+    environment:
+      MYSQL_ROOT_PASSWORD: example
+      MYSQL_DATABASE: a1dia751_diakommarks
+      MYSQL_USER: a1dia751_diakommarks
+      MYSQL_PASSWORD: FryBf)4*28
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+    deploy:
+      resources:
+        limits:
+          memory: 1G # Лимит памяти
+        reservations:
+          memory: 512M # Резервирование памяти
+
+volumes:
+  db_data:
