@@ -125,168 +125,6 @@ fs.readFile('number.txt', 'utf8', (err, data) => {
 });
 //
 
-const fetchData = async (url) => {
-  let sum = 0;
-  try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      console.error(`Ошибка сети: ${response.status}`);
-    }
-    const contentType = response.headers.get('content-type');
-    if (!contentType || !contentType.includes('application/json')) {
-      throw new Error('Ожидался JSON, но получен HTML');
-    }
-    const data = await response.json();
-    for (const result of data.results) {
-      const newId = uuidv4();
-      const createTableMarks_info = `
-      UPDATE marks_info 
-      SET name_marks = ?, 
-          name_applicant = ?, 
-          address_applicant = ?, 
-          name_owner = ?, 
-          address_owner = ?, 
-          number = ?, 
-          status = ?, 
-          adress_img = ?, 
-          last_update = ?, 
-          date_submission = ?, 
-          date_registration = ?,
-          date_update = ?,
-          date_end = ?
-      WHERE registration_number = ?
-    `;
-      const values = [
-        result.data.WordMarkSpecification !== null &&
-        result.data.WordMarkSpecification !== undefined
-          ? result.data.WordMarkSpecification.MarkSignificantVerbalElement !== undefined &&
-            result.data.WordMarkSpecification.MarkSignificantVerbalElement !== null
-            ? result.data.WordMarkSpecification.MarkSignificantVerbalElement[0]['#text']
-            : '* - інформація тимчасово обмежена'
-          : '* - інформація тимчасово обмежена',
-        result.data.HolderDetails !== undefined
-          ? result.data.HolderDetails.Holder[0].HolderAddressBook.FormattedNameAddress.Name
-              .FreeFormatName.FreeFormatNameDetails.FreeFormatNameLine
-          : '* - інформація тимчасово обмежена',
-        result.data.HolderDetails !== undefined
-          ? result.data.HolderDetails.Holder[0].HolderAddressBook.FormattedNameAddress.Address
-              .FreeFormatAddress.FreeFormatAddressLine
-          : '* - інформація тимчасово обмежена',
-        result.data.ApplicantDetails !== undefined
-          ? result.data.ApplicantDetails.Applicant[0].ApplicantAddressBook.FormattedNameAddress.Name
-              .FreeFormatName.FreeFormatNameDetails.FreeFormatNameLine
-          : '* - інформація тимчасово обмежена',
-        result.data.ApplicantDetails !== undefined
-          ? result.data.ApplicantDetails.Applicant[0].ApplicantAddressBook.FormattedNameAddress
-              .Address.FreeFormatAddress.FreeFormatAddressLine
-          : '* - інформація тимчасово обмежена',
-        result.data.ApplicationNumber,
-
-        result.data.registration_status_color,
-        result.data.MarkImageDetails.MarkImage.MarkImageFilename,
-        result.last_update,
-        result.data.ApplicationDate,
-        result.data.RegistrationDate,
-        result.data.ProlonagationExpiryDate,
-        result.data.ExpiryDate,
-        result.data.RegistrationNumber,
-      ];
-      console.log(values);
-      connection.query(createTableMarks_info, values, (err, results) => {
-        if (err) {
-          console.error('Ошибка при добавлении данных:', err);
-        } else {
-          console.log('Данные успешно добавлены');
-
-          // const classDescription = result.data.GoodsServicesDetails?.GoodsServices
-          //   ?.ClassDescriptionDetails?.ClassDescription ?? [
-          //   { termText: '* - інформація тимчасово обмежена' },
-          // ];
-          // try {
-          //   classDescription.map((classDescription) => {
-          //     const classNumber =
-          //       classDescription.ClassNumber || '* - інформація тимчасово обмежена';
-          //     if (classDescription?.ClassificationTermDetails?.ClassificationTerm) {
-          //       let classRecordCounter = [
-          //         classDescription.ClassificationTermDetails.ClassificationTerm.length,
-          //       ];
-          //       // let sum = 0;
-          //       for (let i = 0; i < classRecordCounter.length; i++) {
-          //         sum += classRecordCounter[i];
-          //       }
-          //       classRecordCounter.push();
-          //       console.log('>>>>>>>>>>', sum);
-          //       classDescription.ClassificationTermDetails.ClassificationTerm.map((term) => {
-          //         const termText = term.ClassificationTermText;
-          //         const createTableNumberKeys = `INSERT INTO number_class (number_class, class_info, mark_id) VALUES (?, ?, ?)`;
-          //         const values = [classNumber, termText, results.insertId];
-          //         return new Promise((resolve, reject) => {
-          //           connection.query(createTableNumberKeys, values, (err) => {
-          //             if (err) {
-          //               // console.error('Ошибка при добавлении данных в таблицу номеров ключей', err);
-          //               reject(err);
-          //             } else {
-          //               console.log('Данные в таблицу ключей добавлены');
-          //               resolve();
-          //             }
-          //           });
-          //         });
-          //       });
-          //     } else {
-          //       const fallbackTerm = {
-          //         ClassificationTermLanguageCode: '* - інформація тимчасово обмежена',
-          //         ClassificationTermText: '* - інформація тимчасово обмежена',
-          //       };
-          //       const createTableNumberKeys = `INSERT INTO number_class (number_class, class_info, mark_id) VALUES (?, ?, ?)`;
-          //       const values = [classNumber, fallbackTerm.ClassificationTermText, results.insertId];
-          //       return new Promise((resolve, reject) => {
-          //         connection.query(createTableNumberKeys, values, (err) => {
-          //           if (err) {
-          //             // console.error('Ошибка при добавлении данных в таблицу номеров ключей', err);
-          //             reject(err);
-          //           } else {
-          //             console.log('Данные в таблицу ключей добавлены');
-          //             resolve();
-          //           }
-          //         });
-          //       });
-          //     }
-          //   });
-          // } catch (error) {
-          //   reject(error);
-          // }
-        }
-      });
-    }
-    console.log('mmmm', allPages);
-    if (num < allPages) {
-      num += 1;
-      const nextUrl = `https://sis.nipo.gov.ua/api/v1/open-data/?obj_type=4&page=${num}`;
-      setTimeout(() => {
-        console.log('!!!!', sum);
-        fetchData(nextUrl);
-        fs.writeFile('number.txt', num.toString(), (error) => {
-          if (error) {
-            console.error('Ошибка при записи файла:', error);
-          } else {
-            console.log('Число успешно обновлено в файле:', num);
-          }
-        });
-      }, 5000);
-    } else {
-      console.log('Загрузка данных завершена');
-    }
-  } catch (error) {
-    console.error('Ошибка при загрузке данных:', error);
-    setTimeout(() => {
-      fetchData(url);
-    }, 15000);
-  }
-};
-
-const startAllRecord = initialUrl + `page=${num}`;
-fetchData(startAllRecord);
-
 const lastUpdateMark = async () => {
   const sqllastDate = `SELECT * FROM marks_info`;
   connection.query(sqllastDate, async (err, results) => {
@@ -311,8 +149,7 @@ const lastUpdateMark = async () => {
       const data = await response.json();
       for (const result of data.results) {
         const createTableMarks_info = `
-        INSERT INTO marks_info (id, name_marks, name_applicant, address_applicant, name_owner, address_owner, number, registration_number, status, adress_img, last_update,  date_submission,
-        date_registration,
+        INSERT INTO marks_info (id, name_marks, name_applicant, address_applicant, name_owner, address_owner, number, registration_number, status, adress_img, last_update,    date_submission, date_registration, date_update,
         date_end) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
         const values = [
@@ -348,6 +185,7 @@ const lastUpdateMark = async () => {
           result.data.ApplicationDate,
           result.data.RegistrationDate,
           result.data.ProlonagationExpiryDate,
+          result.data.ExpiryDate,
         ];
         console.log(values);
         connection.query(createTableMarks_info, values, (err, results) => {
@@ -436,17 +274,20 @@ const lastUpdateMark = async () => {
               console.log('Число успешно обновлено в файле:', num);
             }
           });
-        }, 20000);
+        }, 5000);
       } else {
         console.log('Загрузка данных завершена');
       }
     } catch (error) {
       console.error('Ошибка при загрузке данных:', error);
+      setTimeout(() => {
+        fetchData(url);
+      }, 15000);
     }
   });
 };
 
-// setInterval(lastUpdateMark, 24 * 60 * 60 * 1000);
+setInterval(lastUpdateMark, 24 * 60 * 60 * 1000);
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
